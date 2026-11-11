@@ -1,12 +1,120 @@
-# Mastering Diverse Domains through World Models
+# Nightmare (WIP)
 
-A reimplementation of [DreamerV3][paper], a scalable and general reinforcement
-learning algorithm that masters a wide range of applications with fixed
-hyperparameters.
+> 🚧 **Work in progress.** Nightmare is under active development and not yet
+> functional. The design, configs and interfaces below may change.
 
-![DreamerV3 Tasks](https://user-images.githubusercontent.com/2111293/217647148-cbc522e2-61ad-4553-8e14-1ecdc8d9438b.gif)
+**Failure-aware world models: imagine failure states, then avoid them.**
 
-If you find this code useful, please reference in your paper:
+Nightmare is a fork of [DreamerV3][dreamerv3] for control problems where
+certain states are *failure states*, specific combinations of numerical values that
+must be avoided. The agent learns a world model of the system from a
+simulator, imagines possible futures, predicts which of them end in a failure
+state, and trains a policy that stays away from them.
+
+## Motivation
+
+DreamerV3 learns a world model and trains an actor-critic policy inside
+imagined trajectories. It handles vector observations natively and already
+predicts episode termination. Nightmare builds on this for settings where:
+
+- observations are mainly **numerical state vectors** at every step, not
+  video;
+- some states are **terminal failure states**, defined by combinations of
+  values;
+- failure states are **costly**, so the policy should avoid them, not just trade them
+  off against reward;
+- a **simulator** is available for online interaction.
+
+Rendering numbers into images to use video world models (such as Dreamer 4)
+adds no information and wastes compute. Nightmare models the numbers
+directly.
+
+## Method
+
+Nightmare keeps the DreamerV3 core (RSSM world model, symlog predictions,
+imagination-based actor-critic, fixed hyperparameters) and adds:
+
+1. **Failure head.** A dedicated head predicts the probability that a state is
+   a failure state. It extends DreamerV3's continue head, but is trained
+   separately on failure labels from the simulator.
+2. **Rule-based failure check.** When the failure condition is known exactly, it
+   is also applied to the decoded numerical predictions. A state is flagged
+   if either the rule or the learned head flags it.
+3. **Failure-terminated imagination.** Imagined rollouts end at predicted failure
+   states and receive a large penalty, so value estimates propagate risk
+   backwards and the policy steers away early.
+4. **Ensemble uncertainty.** An ensemble of dynamics/failure heads; a state is
+   treated as risky if any member predicts a failure state (pessimistic, minimax-style
+   imagination). High disagreement is also penalized, because it marks
+   futures the data doesn't cover.
+5. **Failure-focused replay.** Sequences that contain or approach failure states
+   are oversampled, so the world model learns rare failures. Optional
+   simulator resets into near-failure states increase coverage.
+6. **Constraint mode (optional).** Failure states are treated as a cost constraint
+   (Lagrangian, cost ≤ limit) instead of only a negative reward, for settings
+   where failure states must essentially never happen.
+7. **Deployment safety filter.** A hard, rule-based check outside the learned
+   model that vetoes actions predicted to lead into failure states. Learned
+   models cannot guarantee avoidance, so this is the backstop.
+
+Optional: a terminal image (if the system produces one) is used only as an
+outcome label or reward signal, not as a per-step observation.
+
+## Instructions
+
+The code is based on DreamerV3 and requires Python 3.11+ and [JAX][jax].
+
+```sh
+pip install -U -r requirements.txt
+```
+
+Training (provisional flags):
+
+```sh
+python dreamerv3/main.py \
+  --logdir ~/logdir/nightmare/{timestamp} \
+  --configs nightmare \
+  --task <your_simulator_task> \
+  --run.train_ratio 32
+```
+
+Your environment should provide, per step:
+
+- `vector`: the numerical observation (any scale; symlog handles it);
+- `reward`: scalar reward;
+- `is_terminal`: episode end;
+- `is_failure`: whether the state is a failure state.
+
+View results:
+
+```sh
+pip install -U scope
+python -m scope.viewer --basedir ~/logdir --port 8000
+```
+
+## Evaluation
+
+Report, alongside return:
+
+- **failure rate** per episode, in the simulator and on held-out conditions;
+- **failure-head calibration** (precision/recall, especially recall on failure states);
+- **steps-before-failure margin**: how early the policy steers away;
+- comparison against a **PPO baseline** and plain DreamerV3.
+
+## Roadmap
+
+- [ ] `is_failure` observation key and failure head
+- [ ] Failure-terminated imagination with penalty
+- [ ] Ensemble heads and pessimistic risk aggregation
+- [ ] Failure-focused replay prioritization
+- [ ] Lagrangian constraint mode
+- [ ] Deployment safety filter
+- [ ] Domain randomization for sim-to-real transfer
+
+## Credits
+
+Nightmare is a fork of [DreamerV3][dreamerv3] by Danijar Hafner et al. If you
+use this code, please cite the original work:
 
 ```
 @article{hafner2025dreamerv3,
@@ -19,105 +127,7 @@ If you find this code useful, please reference in your paper:
 }
 ```
 
-To learn more:
+This project is unrelated to Google or DeepMind.
 
-- [Research paper][paper]
-- [Project website][website]
-- [Twitter summary][tweet]
-
-## DreamerV3
-
-DreamerV3 learns a world model from experiences and uses it to train an actor
-critic policy from imagined trajectories. The world model encodes sensory
-inputs into categorical representations and predicts future representations and
-rewards given actions.
-
-![DreamerV3 Method Diagram](https://user-images.githubusercontent.com/2111293/217355673-4abc0ce5-1a4b-4366-a08d-64754289d659.png)
-
-DreamerV3 masters a wide range of domains with a fixed set of hyperparameters,
-outperforming specialized methods. Removing the need for tuning reduces the
-amount of expert knowledge and computational resources needed to apply
-reinforcement learning.
-
-![DreamerV3 Benchmark Scores](https://github.com/danijar/dreamerv3/assets/2111293/0fe8f1cf-6970-41ea-9efc-e2e2477e7861)
-
-Due to its robustness, DreamerV3 shows favorable scaling properties. Notably,
-using larger models consistently increases not only its final performance but
-also its data-efficiency. Increasing the number of gradient steps further
-increases data efficiency.
-
-![DreamerV3 Scaling Behavior](https://user-images.githubusercontent.com/2111293/217356063-0cf06b17-89f0-4d5f-85a9-b583438c98dd.png)
-
-# Instructions
-
-The code has been tested on Linux and Mac and requires Python 3.11+.
-
-## Docker
-
-You can either use the provided `Dockerfile` that contains instructions or
-follow the manual instructions below.
-
-## Manual
-
-Install [JAX][jax] and then the other dependencies:
-
-```sh
-pip install -U -r requirements.txt
-```
-
-Training script:
-
-```sh
-python dreamerv3/main.py \
-  --logdir ~/logdir/dreamer/{timestamp} \
-  --configs crafter \
-  --run.train_ratio 32
-```
-
-To reproduce results, train on the desired task using the corresponding config,
-such as `--configs atari --task atari_pong`.
-
-View results:
-
-```sh
-pip install -U scope
-python -m scope.viewer --basedir ~/logdir --port 8000
-```
-
-Scalar metrics are also writting as JSONL files.
-
-# Tips
-
-- All config options are listed in `dreamerv3/configs.yaml` and you can
-  override them as flags from the command line.
-- The `debug` config block reduces the network size, batch size, duration
-  between logs, and so on for fast debugging (but does not learn a good model).
-- By default, the code tries to run on GPU. You can switch to CPU or TPU using
-  the `--jax.platform cpu` flag.
-- You can use multiple config blocks that will override defaults in the
-  order they are specified, for example `--configs crafter size50m`.
-- By default, metrics are printed to the terminal, appended to a JSON lines
-  file, and written as Scope summaries. Other outputs like WandB and
-  TensorBoard can be enabled in the training script.
-- If you get a `Too many leaves for PyTreeDef` error, it means you're
-  reloading a checkpoint that is not compatible with the current config. This
-  often happens when reusing an old logdir by accident.
-- If you are getting CUDA errors, scroll up because the cause is often just an
-  error that happened earlier, such as out of memory or incompatible JAX and
-  CUDA versions. Try `--batch_size 1` to rule out an out of memory error.
-- Many environments are included, some of which require installing additional
-  packages. See the `Dockerfile` for reference.
-- To continue stopped training runs, simply run the same command line again and
-  make sure that the `--logdir` points to the same directory.
-
-# Disclaimer
-
-This repository contains a reimplementation of DreamerV3 based on the open
-source DreamerV2 code base. It is unrelated to Google or DeepMind. The
-implementation has been tested to reproduce the official results on a range of
-environments.
-
+[dreamerv3]: https://github.com/danijar/dreamerv3
 [jax]: https://github.com/google/jax#pip-installation-gpu-cuda
-[paper]: https://arxiv.org/pdf/2301.04104
-[website]: https://danijar.com/dreamerv3
-[tweet]: https://twitter.com/danijarh/status/1613161946223677441
