@@ -22,12 +22,13 @@ isimage = lambda s: s.dtype == np.uint8 and len(s.shape) == 3
 
 
 class Agent(embodied.jax.Agent):
-
   banner = [
-      r"---  ___                           __   ______ ---",
-      r"--- |   \ _ _ ___ __ _ _ __  ___ _ \ \ / /__ / ---",
-      r"--- | |) | '_/ -_) _` | '  \/ -_) '/\ V / |_ \ ---",
-      r"--- |___/|_| \___\__,_|_|_|_\___|_|  \_/ |___/ ---",
+      r"---     __ _       _     _                                   _ ---",
+      r"---  /\ \ (_) __ _| |__ | |_ _ __ ___   __ _ _ __ ___/\   /\/ |---",
+      r"--- /  \/ / |/ _` | '_ \| __| '_ ` _ \ / _` | '__/ _ \ \ / /| |---",
+      r"---/ /\  /| | (_| | | | | |_| | | | | | (_| | | |  __/\ V / | |---",
+      r"---\_\ \/ |_|\__, |_| |_|\__|_| |_| |_|\__,_|_|  \___| \_/  |_|---",
+      r"---          |___/                                             ---",
   ]
 
   def __init__(self, obs_space, act_space, config):
@@ -257,7 +258,7 @@ class Agent(embodied.jax.Agent):
     # Train metrics
     _, (new_carry, entries, outs, mets) = self.loss(
         carry, obs, prevact, training=False)
-    metrics.update(mets)
+    mets.update(mets)
 
     # Grad norms
     if self.config.report_gradnorms:
