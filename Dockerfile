@@ -5,8 +5,13 @@
 FROM ghcr.io/nvidia/driver:7c5f8932-550.144.03-ubuntu24.04
 
 # System
+# Base System
 ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=America/San_Francisco
+
+# Time Zone
+ENV TZ=Europe/Paris
+
+# Get Utils
 RUN apt-get update && apt-get install -y \
   ffmpeg git vim curl software-properties-common grep \
   libglew-dev x11-xserver-utils xvfb wget \
