@@ -27,16 +27,33 @@ starts. File references are to the DreamerV3 code as forked.
 
 ## 1. Failure head
 
-- [ ] Add `is_failure` to `exclude` in `Agent.__init__`
+- [x] Add `is_failure` to `exclude` in `Agent.__init__`
       (`dreamerv3/agent.py`), so it is neither encoded nor reconstructed.
-- [ ] Add `self.fail = MLPHead(binary, **config.failhead, name='fail')` next
+- [x] Add `self.fail = MLPHead(binary, **config.failhead, name='fail')` next
       to `self.con`, and add it to `self.modules`.
-- [ ] Add `losses['fail']` in `Agent.loss`, next to `losses['con']`. Use the
+- [x] Add `losses['fail']` in `Agent.loss`, next to `losses['con']`. Use the
       raw label; do not apply the `contdisc` scaling.
-- [ ] Add `failhead` and `loss_scales.fail` to `configs.yaml`.
-- [ ] Add precision, recall and calibration of the failure head to
+- [x] Feed the head `self.feat2tensor(repfeat)` without `sg`, like the
+      continue head, so the failure loss also trains the latent to keep
+      whatever predicts failure.
+- [x] Add `failhead` and `loss_scales.fail` to `configs.yaml`.
+- [x] Add precision, recall and calibration of the failure head to
       `Agent.report`.
 - [ ] Decide how to handle class imbalance (loss weighting or replay, see 5).
+
+### Keep failure-relevant information in the latent
+
+- [ ] Split the observation: put the variables the failure rules depend on in
+      their own key (e.g. `vector_fail`), separate from the rest of `vector`.
+- [ ] Give that key its own reconstruction weight. Today every decoded key
+      gets `loss_scales.rec` (`self.scales` in `Agent.__init__`); add a
+      per-key override such as `loss_scales.rec_fail`.
+- [ ] Measure: report reconstruction error per key and failure-head recall,
+      both on all states and on near-failure states only (e.g. the last N
+      steps before a failure).
+- [ ] Only if that measurement shows the model forgetting: lower
+      `loss_scales.rep` or `dyn.rssm.free_nats`, or raise `dyn.rssm.classes`,
+      and re-measure.
 
 ## 2. Rule-based failure check
 

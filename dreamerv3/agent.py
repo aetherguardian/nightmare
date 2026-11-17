@@ -36,7 +36,7 @@ class Agent(embodied.jax.Agent):
     self.act_space = act_space
     self.config = config
 
-    exclude = ('is_first', 'is_last', 'is_terminal', 'reward')
+    exclude = ('is_first', 'is_last', 'is_terminal', 'reward', 'is_failure')
     enc_space = {k: v for k, v in obs_space.items() if k not in exclude}
     dec_space = {k: v for k, v in obs_space.items() if k not in exclude}
     self.enc = {
@@ -57,6 +57,7 @@ class Agent(embodied.jax.Agent):
     binary = elements.Space(bool, (), 0, 2)
     self.rew = embodied.jax.MLPHead(scalar, **config.rewhead, name='rew')
     self.con = embodied.jax.MLPHead(binary, **config.conhead, name='con')
+    self.fail = embodied.jax.MLPHead(binary, **config.failhead, name='fail')
 
     d1, d2 = config.policy_dist_disc, config.policy_dist_cont
     outs = {k: d1 if v.discrete else d2 for k, v in act_space.items()}
@@ -73,7 +74,7 @@ class Agent(embodied.jax.Agent):
     self.advnorm = embodied.jax.Normalize(**config.advnorm, name='advnorm')
 
     self.modules = [
-        self.dyn, self.enc, self.dec, self.rew, self.con, self.pol, self.val]
+        self.dyn, self.enc, self.dec, self.rew, self.con, self.pol, self.val, self.fail]
     self.opt = embodied.jax.Optimizer(
         self.modules, self._make_opt(**config.opt), summary_depth=1,
         name='opt')
@@ -176,6 +177,23 @@ class Agent(embodied.jax.Agent):
     if self.config.contdisc:
       con *= 1 - 1 / self.config.horizon
     losses['con'] = self.con(self.feat2tensor(repfeat), 2).loss(con)
+    fail = obs['is_failure']
+    failout = self.fail(self.feat2tensor(repfeat), 2)
+    losses['fail'] = failout.loss(f32(fail))
+    p = failout.prob(1)          # predicted failure probability, shape (B, T)
+    pred = p > 0.5
+    metrics['fail/tp'] = f32(pred & fail).sum()
+    metrics['fail/fp'] = f32(pred & ~fail).sum()
+    metrics['fail/fn'] = f32(~pred & fail).sum()
+    metrics['fail/brier'] = jnp.square(p - f32(fail)).mean()
+    metrics['fail/p_mean'] = p.mean()
+    metrics['fail/base_rate'] = f32(fail).mean()
+    for i in range(10):          # calibration bins
+      hi = (p <= 1.0) if i == 9 else (p < (i + 1) / 10)
+      inbin = (p >= i / 10) & hi
+      metrics[f'fail/bin{i}_n'] = f32(inbin).sum()
+      metrics[f'fail/bin{i}_pos'] = f32(inbin & fail).sum()
+
     for key, recon in recons.items():
       space, value = self.obs_space[key], obs[key]
       assert value.dtype == space.dtype, (key, space, value.dtype)
@@ -258,7 +276,7 @@ class Agent(embodied.jax.Agent):
     # Train metrics
     _, (new_carry, entries, outs, mets) = self.loss(
         carry, obs, prevact, training=False)
-    mets.update(mets)
+    metrics.update(mets)
 
     # Grad norms
     if self.config.report_gradnorms:
