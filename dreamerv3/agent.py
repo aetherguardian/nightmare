@@ -180,17 +180,19 @@ class Agent(embodied.jax.Agent):
     fail = obs['is_failure']
     failout = self.fail(self.feat2tensor(repfeat), 2)
     losses['fail'] = failout.loss(f32(fail))
-    p = failout.prob(1)          # predicted failure probability, shape (B, T)
-    pred = p > 0.5
+    p_fail = failout.prob(1)          # predicted failure probability, shape (B, T)
+    pred = p_fail > 0.5
+
+    # Metrics
     metrics['fail/tp'] = f32(pred & fail).sum()
     metrics['fail/fp'] = f32(pred & ~fail).sum()
     metrics['fail/fn'] = f32(~pred & fail).sum()
-    metrics['fail/brier'] = jnp.square(p - f32(fail)).mean()
-    metrics['fail/p_mean'] = p.mean()
+    metrics['fail/brier'] = jnp.square(p_fail - f32(fail)).mean()
+    metrics['fail/p_mean'] = p_fail.mean()
     metrics['fail/base_rate'] = f32(fail).mean()
     for i in range(10):          # calibration bins
-      hi = (p <= 1.0) if i == 9 else (p < (i + 1) / 10)
-      inbin = (p >= i / 10) & hi
+      hi = (p_fail <= 1.0) if i == 9 else (p_fail < (i + 1) / 10)
+      inbin = (p_fail >= i / 10) & hi
       metrics[f'fail/bin{i}_n'] = f32(inbin).sum()
       metrics[f'fail/bin{i}_pos'] = f32(inbin & fail).sum()
 
@@ -219,10 +221,15 @@ class Agent(embodied.jax.Agent):
     assert all(x.shape[:2] == (B * K, H + 1) for x in jax.tree.leaves(imgfeat))
     assert all(x.shape[:2] == (B * K, H + 1) for x in jax.tree.leaves(imgact))
     inp = self.feat2tensor(imgfeat)
+    img_pfail = self.fail(inp, 2).prob(1)
+    img_rew = self.rew(inp, 2).pred() - self.config.fail_penalty * img_pfail
+    img_con = self.con(inp, 2).prob(1) * (1 - img_pfail)
+    metrics['fail/img_p_mean'] = img_pfail.mean()
+
     los, imgloss_out, mets = imag_loss(
         imgact,
-        self.rew(inp, 2).pred(),
-        self.con(inp, 2).prob(1),
+        img_rew,
+        img_con,
         self.pol(inp, 2),
         self.val(inp, 2),
         self.slowval(inp, 2),

@@ -107,6 +107,7 @@ defaults:
     imag_length: 15
     horizon: 333
     contdisc: True
+    fail_penalty: 10.0
     imag_loss: {slowtar: False, lam: 0.95, actent: 3e-4, slowreg: 1.0}
     repl_loss: {slowtar: False, lam: 0.95, slowreg: 1.0}
     slowvalue: {rate: 0.02, every: 1}
