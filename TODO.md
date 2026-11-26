@@ -103,7 +103,7 @@ behaviour).
       features and pass `rew - fail_penalty * p_fail` and
       `con * (1 - p_fail)` into `imag_loss`. A failure ends the episode, so
       imagination stops at predicted failures.
-- [ ] **Before env** Same in the replay value loss: `term | is_failure` and
+- [x] **Before env** Same in the replay value loss: `term | is_failure` and
       `rew - fail_penalty * is_failure`, using the real labels.
 - [x] Add `fail_penalty` under `agent:` in `configs.yaml`.
 - [ ] **After env** Size the penalty so it dominates: with Φ in [0, 1],

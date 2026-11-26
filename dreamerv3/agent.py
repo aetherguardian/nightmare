@@ -245,6 +245,9 @@ class Agent(embodied.jax.Agent):
     if self.config.repval_loss:
       feat = sg(repfeat, skip=self.config.repval_grad)
       last, term, rew = [obs[k] for k in ('is_last', 'is_terminal', 'reward')]
+      # line below is a safeguard for when the env doesn't return is_terminal on failures
+      term = term | obs['is_failure']
+      rew = rew - self.config.fail_penalty * f32(obs['is_failure'])
       boot = imgloss_out['ret'][:, 0].reshape(B, K)
       feat, last, term, rew, boot = jax.tree.map(
           lambda x: x[:, -K:], (feat, last, term, rew, boot))
