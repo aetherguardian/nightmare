@@ -3,14 +3,14 @@
 
 import collections
 import json
-from functools import parial as bind
+from functools import partial as bind
 
 import elements
 import embodied
 import numpy as np
 
 def candidates(make_agent, make_env, args):
-    asset args.from_checkpoint, 'Pass --run.from_checkpoint <path>'
+    assert args.from_checkpoint, 'Pass --run.from_checkpoint <path>'
 
     agent = make_agent()
     cp = elements.Checkpoint()
@@ -46,6 +46,7 @@ def candidates(make_agent, make_env, args):
             'max_progress': float(np.nanmax(progress)) if np.isfinite(progress).any() else None,
             'length': len(steps),
             'seed': int(first['log/seed']) if 'log/seed' in first else None,
+            'score': float(sum(s['reward'] for s in steps)),
     })
 
     def record(tran, worker):
