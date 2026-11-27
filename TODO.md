@@ -151,16 +151,16 @@ behaviour).
       `embodied/run/eval_only.py`) that runs the deterministic policy and
       records, per episode, the start condition / seed, the full action
       sequence, whether it failed, and the maximum progress reached.
-- [ ] **Before env** Rank candidates:
-  1. failure-free runs first, goal reached before goal not reached;
-  2. failing runs by maximum progress (`log/progress`), then steps survived;
-  3. within a group, by risk: largest predicted failure probability and
-     smallest margin to a failure rule (pessimistic ensemble from section 4
-     if available);
-  4. task reward only breaks remaining ties.
+- [x] **Before env** Rank candidates:
+      1. failure-free runs first, goal reached before goal not reached;
+      2. failing runs by maximum progress (`log/progress`), then steps survived;
+      3. within a group, by risk: largest predicted failure probability and
+      smallest margin to a failure rule (pessimistic ensemble from section 4
+      if available);
+      4. task reward only breaks remaining ties.
 - [ ] **After env** If start conditions vary, run each candidate on several
       of them and rank by failure rate across those runs first.
-- [ ] **Before env** Always export the best candidates found, even if none is
+- [x] **Before env** Always export the best candidates found, even if none is
       failure-free.
 - [ ] **Before env** Keep several distinct candidates, so the exact
       simulation has alternatives if the top one fails.
