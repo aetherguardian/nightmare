@@ -144,10 +144,10 @@ behaviour).
 
 ## 6. Candidate export
 
-- [ ] **Before env** Deterministic policy mode: `Agent.policy` ignores `mode`
+- [x] **Before env** Deterministic policy mode: `Agent.policy` ignores `mode`
       and always samples; add a mean/argmax path so a candidate is
       reproducible.
-- [ ] **Before env** Candidate run: an eval-only script (based on
+- [x] **Before env** Candidate run: an eval-only script (based on
       `embodied/run/eval_only.py`) that runs the deterministic policy and
       records, per episode, the start condition / seed, the full action
       sequence, whether it failed, and the maximum progress reached.

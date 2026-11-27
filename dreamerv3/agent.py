@@ -125,7 +125,10 @@ class Agent(embodied.jax.Agent):
     if dec_carry:
       dec_carry, dec_entry, recons = self.dec(dec_carry, feat, reset, **kw)
     policy = self.pol(self.feat2tensor(feat), bdims=1)
-    act = sample(policy)
+    if mode == 'eval':
+      act = {k: v.pred() for k, v in policy.items()}
+    else:
+      act = sample(policy)  
     out = {}
     out['finite'] = elements.tree.flatdict(jax.tree.map(
         lambda x: jnp.isfinite(x).all(range(1, x.ndim)),

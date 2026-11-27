@@ -92,6 +92,12 @@ def main(argv=None):
         bind(make_logger, config),
         args)
 
+  elif config.script == 'candidates':
+    embodied.run.candidates(
+        bind(make_agent, config),
+        bind(make_env, config),
+        args)      
+
   elif config.script == 'parallel':
     embodied.run.parallel.combined(
         bind(make_agent, config),
