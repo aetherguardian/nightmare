@@ -86,7 +86,7 @@ class Agent(embodied.jax.Agent):
 
   @property
   def policy_keys(self):
-    return '^(enc|dyn|dec|pol)/'
+    return '^(enc|dyn|dec|pol|fail)/'
 
   @property
   def ext_space(self):
@@ -125,7 +125,7 @@ class Agent(embodied.jax.Agent):
     if dec_carry:
       dec_carry, dec_entry, recons = self.dec(dec_carry, feat, reset, **kw)
     policy = self.pol(self.feat2tensor(feat), bdims=1)
-    if mode == 'eval':
+    if mode in ('eval', 'export'):
       act = {k: v.pred() for k, v in policy.items()}
     else:
       act = sample(policy)  
@@ -133,6 +133,14 @@ class Agent(embodied.jax.Agent):
     out['finite'] = elements.tree.flatdict(jax.tree.map(
         lambda x: jnp.isfinite(x).all(range(1, x.ndim)),
         dict(obs=obs, carry=carry, tokens=tokens, feat=feat, act=act)))
+    if mode == 'export':
+      def best_action(s):
+        dists = self.pol(self.feat2tensor(s), bdims=1)
+        return {k: v.pred() for k, v in dists.items()}
+      _, imgfeat, _ = self.dyn.imagine(
+        dyn_carry, best_action, self.config.imag_length, training=False)
+      risk = self.fail(self.feat2tensor(imgfeat), 2).prob(1)
+      out['fail_risk'] = risk.max(1)      
     carry = (enc_carry, dyn_carry, dec_carry, act)
     if self.config.replay_context:
       out.update(elements.tree.flatdict(dict(
